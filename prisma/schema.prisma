@@ -1,0 +1,91 @@
+generator client {
+ provider = "prisma-client-js"
+}
+
+datasource db {
+ provider = "postgresql"
+ url = env("DATABASE_URL")
+}
+
+enum Role {
+ STUDENT
+ PARENT
+ ADMIN
+}
+
+enum ReviewState {
+ LEGACY_UNVERIFIED
+ PENDING_REVIEW
+ APPROVED
+ REJECTED
+}
+
+enum AttemptStatus {
+ IN_PROGRESS
+ SUBMITTED
+ EXPIRED
+}
+
+enum TestMode {
+ FULL
+ DAILY
+ REVISION
+}
+
+model User {
+ id String @id @default(cuid())
+ authSubject String @unique
+ displayName String
+ role Role @default(STUDENT)
+ createdAt DateTime @default(now())
+ attempts Attempt[]
+}
+model Question {
+ id String @id @default(cuid())
+ legacyId String @unique
+ subject String
+ text String @db.Text
+ options Json
+ correctIndex Int
+ explanation String @db.Text
+ skill String
+ reviewState ReviewState @default(LEGACY_UNVERIFIED)
+ legacyReviewStatus String?
+ contentHash String
+ revision Int @default(1)
+ createdAt DateTime @default(now())
+ items AttemptItem[]
+ @@index([subject,reviewState])
+}
+model Attempt {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId],references:[id])
+ subject String @default("math")
+ mode TestMode
+ status AttemptStatus @default(IN_PROGRESS)
+ startedAt DateTime @default(now())
+ deadlineAt DateTime
+ submittedAt DateTime?
+ score Int?
+ answered Int?
+ total Int
+ items AttemptItem[]
+ @@index([userId,status])
+ @@index([userId,startedAt])
+}
+model AttemptItem {
+ id String @id @default(cuid())
+ attemptId String
+ attempt Attempt @relation(fields:[attemptId],references:[id],onDelete:Cascade)
+ questionId String
+ question Question @relation(fields:[questionId],references:[id])
+ ordinal Int
+ // Immutable snapshot: never re-score historical attempts from edited question bank.
+ snapshot Json
+ selectedIndex Int?
+ answeredAt DateTime?
+ isCorrect Boolean?
+ @@unique([attemptId,ordinal])
+ @@unique([attemptId,questionId])
+}
